@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P.U.R.A. · Painel do ar</title>
+<style>
+:root{--bg:#e9f0ee;--surface:#f8fbfa;--ink:#14302d;--muted:#5a726e;--line:#c9d8d4;--ok:#23816b;--warn:#b9791a;--bad:#b2382c;--accent:#2f5ba8}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1c1b;--surface:#162726;--ink:#e3efec;--muted:#8fa8a3;--line:#2a4140;--ok:#4cbf9f;--warn:#e0a948;--bad:#ee7b6e;--accent:#7ea5ee}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Avenir Next","Segoe UI Variable","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:20px clamp(16px,4vw,48px)}
+h1{margin:0;font-size:1.5rem;letter-spacing:.02em;font-weight:700}
+h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--muted);letter-spacing:0}
+.ctl{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.9rem}
+select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bad)}.dot.on{background:var(--ok)}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px;padding:0 clamp(16px,4vw,48px) 24px}
+.room{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--ok);border-radius:10px;padding:20px}
+.room.warn{border-left-color:var(--warn)}.room.bad{border-left-color:var(--bad)}.room.off{border-left-color:var(--muted);opacity:.85}
+.room h2{margin:0 0 2px;font-size:1.15rem;display:flex;justify-content:space-between;align-items:baseline}
+.badge{font-size:.8rem;font-weight:600;color:var(--ok)}.badge.safe,.badge.emergency{color:var(--bad)}.badge.off{color:var(--muted)}
+.sub{color:var(--muted);font-size:.85rem;margin:0 0 16px}
+.big{font-size:3.2rem;line-height:1;font-weight:700}.big span{font-size:1rem;font-weight:400;color:var(--muted);margin-left:6px}
+.gauge{position:relative;height:10px;border-radius:5px;margin:12px 0 4px;background:linear-gradient(90deg,var(--ok) 0 40%,var(--warn) 40% 72%,var(--bad) 72% 100%);opacity:.9}
+.mark{position:absolute;top:-5px;width:4px;height:20px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
+.mark.fc{background:transparent;border:2px solid var(--ink);width:10px;height:10px;top:-2px;border-radius:50%;transform:translateX(-5px)}
+.scale{display:flex;justify-content:space-between;color:var(--muted);font-size:.75rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.k{color:var(--muted);font-size:.85rem}.v{font-size:1.4rem;font-weight:600}
+.act{margin-top:18px;display:grid;gap:8px}
+.lvl{display:flex;align-items:center;gap:10px}.lvl .k{width:90px}
+.steps{display:flex;gap:4px}.steps i{width:28px;height:12px;border-radius:3px;background:var(--line)}.steps i.on{background:var(--accent)}
+.reason{margin-top:14px;font-size:.85rem;color:var(--muted);min-height:1.2em}
+svg.spark{width:100%;height:46px;margin-top:14px}
+section.log{padding:0 clamp(16px,4vw,48px) 40px}
+section.log h2{font-size:1rem;margin:0 0 8px}
+ul{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;max-height:240px;overflow:auto}
+li{padding:8px 14px;border-bottom:1px solid var(--line);font-size:.88rem;display:flex;gap:12px}li:last-child{border:0}
+li time{color:var(--muted);flex:none}li.bad{color:var(--bad)}li.warn{color:var(--warn)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>P.U.R.A.<small>Purificação Unificada e Reativa do Ar</small></h1>
+  <div class="ctl">
+    <span class="dot" id="conn" role="img" aria-label="conexão"></span><span id="connTxt">conectando…</span>
+    <label for="opt">Estratégia</label>
+    <select id="opt"></select>
+  </div>
+</header>
+<main id="rooms"><p style="color:var(--muted)">Aguardando dados dos sensores…</p></main>
+<section class="log"><h2>Eventos recentes</h2><ul id="events"></ul></section>
+<script>
+const $=s=>document.querySelector(s), hist={};
+const fmt=(x,d=0)=>x==null?'—':Number(x).toFixed(d);
+const pct=(v,lo,hi)=>Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100));
+const KIND={reading_rejected:'bad',safe_mode:'bad',sensor_offline:'bad',limit_exceeded:'warn'};
+const TXT=e=>({reading_rejected:`leitura rejeitada (${e.data.kind}): ${e.data.detail||''}`,safe_mode:`modo seguro: ${e.data.reason}`,
+ sensor_offline:'sensor sem dados',sensor_online:'sensor voltou',limit_exceeded:`limite excedido: ${e.data.limit} = ${fmt(e.data.value)}`,
+ decision:`exaustor ${e.data.exhaust} · purificador ${e.data.purifier} (${e.data.mode})`,optimizer_changed:`estratégia: ${e.data.optimizer}`,
+ reading_accepted:'leitura aceita'}[e.kind]||e.kind);
+function steps(n){return '<span class="steps">'+[1,2,3].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')+'</span>'}
+function spark(name){const h=hist[name]||[];if(h.length<2)return '';const lo=Math.min(...h,400),hi=Math.max(...h,1000),w=300,ht=46;
+ const pts=h.map((v,i)=>`${i/(h.length-1)*w},${ht-(v-lo)/(hi-lo)*ht}`).join(' ');
+ const y1000=ht-(1000-lo)/(hi-lo)*ht;
+ return `<svg class="spark" viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" role="img" aria-label="CO2 recente"><line x1="0" x2="${w}" y1="${y1000}" y2="${y1000}" stroke="var(--line)" stroke-dasharray="3 3"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`}
+function card(name,r){
+ const rd=r.reading,d=r.decision,fc=r.forecast_15min;
+ let cls='room',mode=d?d.mode:'—';
+ if(!r.online)cls+=' off';else if(mode==='emergency'||mode==='safe')cls+=' bad';else if(rd&&rd.co2>1000)cls+=' warn';
+ if(rd&&rd.co2!=null){const h=hist[name]=hist[name]||[];if(h.at(-1)!==rd.co2||!h.length){h.push(rd.co2);if(h.length>120)h.shift()}}
+ const label=!r.online?'sem dados':mode==='normal'?'normal':mode==='safe'?'modo seguro':'emergência';
+ return `<article class="${cls}"><h2>${name}<span class="badge ${!r.online?'off':mode}">${label}</span></h2>
+ <p class="sub">${r.bedroom?'Quarto · limite de ruído noturno ativo':'Área social'}${r.age_s!=null?` · atualizado há ${fmt(r.age_s)} s`:''}</p>
+ <div class="big">${fmt(rd&&rd.co2)}<span>ppm de CO₂</span></div>
+ <div class="gauge" role="img" aria-label="CO2 atual e previsão">${rd&&rd.co2!=null?`<i class="mark" style="left:${pct(rd.co2,400,2000)}%"></i>`:''}${fc&&fc.co2!=null?`<i class="mark fc" style="left:${pct(fc.co2,400,2000)}%"></i>`:''}</div>
+ <div class="scale"><span>400</span><span>1000</span><span>1500</span><span>2000</span></div>
+ <div class="row"><div><div class="k">PM2.5 (µg/m³)</div><div class="v">${fmt(rd&&rd.pm25,1)}</div></div>
+ <div><div class="k">Previsão em 15 min</div><div class="v">${fmt(fc&&fc.co2)} ppm</div></div>
+ <div><div class="k">VOC (ppb)</div><div class="v">${fmt(rd&&rd.voc)}</div></div>
+ <div><div class="k">Temp · umidade</div><div class="v">${fmt(rd&&rd.temp,1)} °C · ${fmt(rd&&rd.hum)}%</div></div></div>
+ <div class="act"><div class="lvl"><span class="k">Exaustor</span>${steps(d?d.exhaust:0)}</div><div class="lvl"><span class="k">Purificador</span>${steps(d?d.purifier:0)}</div></div>
+ <div class="reason">${d?d.reason:''}${r.actuator&&r.actuator.failsafe?' · nó em fail-safe':''}</div>${spark(name)}</article>`}
+function render(s){
+ const sel=$('#opt');if(!sel.options.length){sel.innerHTML=s.optimizers.map(o=>`<option>${o}</option>`).join('')}
+ if(document.activeElement!==sel)sel.value=s.optimizer;
+ $('#rooms').innerHTML=Object.entries(s.rooms).map(([n,r])=>card(n,r)).join('');
+ const ev=s.events.filter(e=>e.kind!=='reading_accepted').slice(-25).reverse();
+ $('#events').innerHTML=ev.length?ev.map(e=>`<li class="${KIND[e.kind]||''}"><time>${new Date(e.ts*1000).toLocaleTimeString()}</time><span>${e.room?e.room+': ':''}${TXT(e)}</span></li>`).join(''):'<li>Nenhum evento ainda.</li>';
+}
+$('#opt').addEventListener('change',async e=>{
+ const t=prompt('Token da API (deixe vazio se não configurado):','')||'';
+ const r=await fetch('/api/optimizer',{method:'POST',headers:{'Content-Type':'application/json','X-API-Token':t},body:JSON.stringify({name:e.target.value})});
+ if(!r.ok)alert('Não foi possível trocar a estratégia: '+(await r.text()))});
+let ws;
+function setConn(on){$('#conn').classList.toggle('on',on);$('#connTxt').textContent=on?'ao vivo':'reconectando…'}
+function connect(){ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+ ws.onopen=()=>setConn(true);ws.onmessage=e=>render(JSON.parse(e.data));ws.onclose=()=>{setConn(false);setTimeout(connect,2000)}}
+connect();
+setInterval(async()=>{try{render(await (await fetch('/api/state')).json())}catch{}},5000);
+</script>
+</body>
+</html>
