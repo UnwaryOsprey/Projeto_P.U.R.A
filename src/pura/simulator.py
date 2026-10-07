@@ -1,6 +1,6 @@
 """ESP32 virtual: publica leituras assinadas e obedece comandos assinados.
 
-    python -m pura.simulator            (usa as mesmas variáveis PURA_* do servidor)
+    python -m pura.simulator            (modo MQTT; usa as mesmas variaveis PURA_* do servidor)
 
 Roda a mesma física do otimizador, acelerada (PURA_SIM_SPEED, padrão 30x).
 """
@@ -14,8 +14,8 @@ import time
 import numpy as np
 
 from . import topics
-from .adapters.mqtt_bus import MqttBus
 from .config import Settings
+from .envfile import load_dotenv
 from .model.dynamics import CO2_EXT, EXHAUST_FLOW, PURIFIER_CADR, step
 from .model.scenarios import make_scenario
 from .security import NonceCache, Rejected, sign_sensor, verify_command
@@ -67,6 +67,9 @@ class VirtualNode:
 
 
 def main() -> None:
+    from .adapters.mqtt_bus import MqttBus  # so o modo MQTT precisa do paho-mqtt
+
+    load_dotenv()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     s = Settings.from_env()
     speed = float(os.environ.get("PURA_SIM_SPEED", 30))

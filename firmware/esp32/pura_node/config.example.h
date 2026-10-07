@@ -5,7 +5,7 @@
 #define WIFI_SSID   "sua-rede"
 #define WIFI_PASS   "sua-senha"
 
-// ---- Broker MQTT (IP do computador que roda o docker compose) ----
+// ---- Broker MQTT (IP do computador que roda o broker Mosquitto) ----
 #define MQTT_HOST   "192.168.0.10"
 #define MQTT_PORT   1883            // 8883 no modo seguro (TLS)
 #define MQTT_USER   ""              // modo seguro: "esp32-sala"

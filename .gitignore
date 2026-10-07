@@ -13,3 +13,7 @@ data/
 infra/mosquitto/certs/
 infra/mosquitto/passwd
 firmware/esp32/pura_node/config.h
+
+# versao local
+.venv/
+.env

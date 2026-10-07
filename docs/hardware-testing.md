@@ -16,11 +16,11 @@ Sem algum sensor? Ponha `HAS_x 0` no `config.h` (o nó envia `-1` e o servidor i
 
 ## 2. Servidor (um integrante, no computador da bancada)
 
+Instale o Mosquitto, libere a porta 1883 e inicie o servidor em modo MQTT: passo a passo em [`esp32-real.md`](esp32-real.md).
+
 ```bash
-cp .env.example .env            # troque as chaves PURA_KEYS
-docker compose up --build       # broker + servidor + dashboard em http://localhost:8000
+python -m pura --mqtt --open     # painel em http://localhost:8000
 ```
-Descubra o IP do computador na rede (`ip a` / `ipconfig`) e libere as portas 1883 e 8000 no firewall.
 
 ## 3. Firmware
 1. Arduino IDE ≥ 2 com **esp32 by Espressif core 3.x**; instale PubSubClient, ArduinoJson, SensirionI2CScd4x (e Adafruit SGP30 se usar).
@@ -34,7 +34,7 @@ Descubra o IP do computador na rede (`ip a` / `ipconfig`) e libere as portas 188
 - [ ] **CO₂:** respirar perto do SCD4x por 30 s → CO₂ sobe; o nível do exaustor sobe no painel e o serial mostra `cmd ok`. Medir o ventilador reagindo (PWM no osciloscópio/multímetro ou rotação).
 - [ ] **PM2.5:** soprar fumaça de incenso/vela apagada perto do PMS5003 → PM2.5 sobe → purificador reage.
 - [ ] **Comparação de estratégias:** no seletor do painel, alternar `fuzzy`, `hysteresis`, `ga`; anotar tempo de resposta e comportamento.
-- [ ] **Fail-safe do nó:** parar o servidor (`docker compose stop pura`) → após 5 min o serial mostra `FAIL-SAFE` e o exaustor vai a nível 1.
+- [ ] **Fail-safe do nó:** parar o servidor (`Ctrl+C` no terminal do `python -m pura --mqtt`) → após 5 min o serial mostra `FAIL-SAFE` e o exaustor vai a nível 1.
 - [ ] **Sensor offline:** desligar o sensor/nó → após `PURA_STALE_S` o painel mostra "sem dados" e o servidor manda modo seguro.
 - [ ] **Segurança (apenas no broker do grupo):** (a) `mosquitto_pub` em `.../sensor` sem assinatura → evento `reading_rejected (auth)`; (b) reenviar uma leitura capturada → `replay`; (c) `mosquitto_pub` em `.../atuador/cmd` sem assinatura → serial `ASSINATURA INVÁLIDA`.
 - [ ] Medir latência sensor→comando (timestamp do serial vs. log do servidor) em ≥ 30 amostras e registrar média e p95.
@@ -43,11 +43,4 @@ Descubra o IP do computador na rede (`ip a` / `ipconfig`) e libere as portas 188
 Com o ar externo (~420 ppm) por 10 min, compare com o SCD4x e ajuste `Calibrator` (`src/pura/pipeline.py`) se houver offset. Meça a vazão real do exaustor e o ruído (app de decibelímetro) e atualize as tabelas em `src/pura/model/dynamics.py`: isso melhora a previsão do otimizador.
 
 ## 6. Modo seguro (TLS + senha + ACL)
-```bash
-./infra/gen_certs.sh <IP-do-servidor>
-./infra/create_users.sh                     # imprime as senhas
-# .env: MOSQUITTO_CONF=mosquitto.conf, PURA_MQTT_PORT=8883, PURA_MQTT_USER=pura-server,
-#       PURA_MQTT_PASSWORD=<senha>, PURA_MQTT_CA=/certs/ca.crt
-# config.h: MQTT_PORT 8883, MQTT_USER "esp32-sala", MQTT_PASS "<senha>", USE_TLS 1, CA_CERT = conteúdo de ca.crt
-docker compose up -d --force-recreate
-```
+Não incluído nesta versão sem Docker. O Mosquitto nativo suporta `password_file`, `acl_file` e `cafile`/`certfile`/`keyfile`; consulte a documentação do Mosquitto. Até lá, use o broker apenas em rede de laboratório isolada (o HMAC das mensagens continua ativo).
