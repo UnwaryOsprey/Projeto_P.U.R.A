@@ -1,0 +1,46 @@
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff
+      - run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python-version }}" }
+      - run: python -m unittest discover -s tests -t . -v
+      - name: Fumaça do protocolo experimental (2 sementes)
+        run: python -m pura.experiments --seeds 2 --out /tmp/results
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pura-gateway .
+      - name: Sobe o contêiner e verifica a saúde
+        run: |
+          docker run -d --name gw -p 8000:8000 -e PURA_SECRET=segredo-de-ci-com-16-ou-mais pura-gateway
+          for i in 1 2 3 4 5 6 7 8 9 10; do curl -fs http://localhost:8000/healthz && exit 0; sleep 1; done
+          docker logs gw
+          exit 1
+      - name: Contêiner recusa subir sem segredo (VULN-002)
+        run: |
+          if docker run --rm pura-gateway; then echo "deveria falhar"; exit 1; fi
