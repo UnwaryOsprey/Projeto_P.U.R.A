@@ -1,0 +1,6 @@
+# Cada área exige revisão de quem responde por ela (ajuste para os usuários reais do GitHub).
+/pura/routers/   @integrante-otimizacao
+/pura/security.py @integrante-telecom
+/pura/server.py   @integrante-telecom
+/docs/adr/              @integrante-arquitetura
+/tests/                 @integrante-opensource
