@@ -538,35 +538,18 @@ const demoAt=t=>880+330*Math.sin(t/14)+20*Math.sin(t/3.1)+(Math.random()-.5)*14;
 function demoTick(){if(!AIR.ppm.length)for(let i=100;i>0;i--)AIR.ppm.push(demoAt(((performance.now()-AIR.t0)/1000)-i*2.5));const t=(performance.now()-AIR.t0)/1000,ppm=880+330*Math.sin(t/14)+20*Math.sin(t/3.1)+(Math.random()-.5)*14;
   if(!demoFan&&ppm>=1000)demoFan=true;else if(demoFan&&ppm<=800)demoFan=false;
   AIR.ppm.push(ppm);if(AIR.ppm.length>120)AIR.ppm.shift();airRender(ppm,26.5+1.5*Math.sin(t/30),52+6*Math.sin(t/22),demoFan,AIR.ppm)}
-
-let failCount = 0;
 async function poll(){
   try{
-    const d=await (await fetch('/api/telemetry',{cache:'no-store'})).json();
-    failCount = 0;
-    $('#sysDot').className='dot';
-    $('#sysTxt').textContent='Sistema operacional';
-    $('#bGw').textContent='online';
+    const d=await (await fetch('/api/telemetry',{cache:'no-store'})).json();$('#sysDot').className='dot';$('#sysTxt').textContent='Sistema operacional';$('#bGw').textContent='online';
     const s=d.samples,l=s[s.length-1],c=d.counters;
     if(l&&l.ppm!=null){setSource(true);const ser=s.map(x=>x.ppm).filter(x=>x!=null);const fan=Object.values(d.fan||{})[0]||false;
       airRender(Number(l.ppm),Number(l.t??0),Number(l.h??0),!!fan,ser)}
     else{if(AIR.real)setSource(false);if(!AIR.real&&!AIR._d){setSource(false);AIR._d=1}demoTick()}
     shield(c,null,!!l);
     const al=await (await fetch('/api/alerts',{cache:'no-store'})).json();shield(c,al,!!l);
-  }catch(e){
-    failCount++;
-    if (failCount >= 3) {
-      $('#sysDot').className='dot off';
-      $('#sysTxt').textContent='Gateway offline';
-      $('#bGw').textContent='offline (modo demo)';
-      setSource(false);
-      demoTick();
-      shield(null,null,false);
-    }
-  }
+  }catch(e){$('#sysDot').className='dot off';$('#sysTxt').textContent='Gateway offline';$('#bGw').textContent='offline (modo demo)';setSource(false);demoTick();shield(null,null,false)}
   setTimeout(poll,2500);
 }
-
 function shield(c,al,real){
   const tg=$('#secTag');tg.textContent=c?'AO VIVO':'DEMO';tg.className='tag'+(c?'':' demo');
   const v=c||{accepted:0,bad_signature:0,replay:0,bad_request:0};
