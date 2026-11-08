@@ -1,19 +1,5 @@
 __pycache__/
 *.pyc
 .venv/
-.env
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-results/*.csv
-results/*.png
-data/
-infra/mosquitto/certs/
-infra/mosquitto/passwd
-firmware/esp32/pura_node/config.h
-
-# versao local
-.venv/
+firmware/esp32_node/secrets.h
 .env

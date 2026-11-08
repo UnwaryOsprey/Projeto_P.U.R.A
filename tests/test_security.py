@@ -1,70 +1,67 @@
 import json
+import threading
+import unittest
+import urllib.error
+import urllib.request
 
-import pytest
+from pura.security import ReplayGuard, sign, verify
+from pura.server import State, make_server
 
-from pura.config import Settings
-from pura.security import NonceCache, Rejected, sign_command, sign_sensor, verify_command, verify_sensor
-
-S = Settings(keys={"sala": "k-sala", "quarto": "k-quarto"})
-VALS = {"co2": 612.3, "pm25": 8.0, "voc": None, "temp": 24.1, "hum": 55.0}
-NOW = 1_800_000_000.0
-
-
-def test_valid_message_accepted_and_missing_sensor_is_none():
-    r = verify_sensor(json.dumps(sign_sensor(S, "sala", VALS, NOW)), "sala", S, NonceCache(), NOW)
-    assert r.co2 == 612.3 and r.voc is None and r.room == "sala"
+SECRET = b"segredo-de-teste"
 
 
-def test_tampered_payload_rejected():
-    p = sign_sensor(S, "sala", VALS, NOW)
-    p["co2"] = 400.0  # atacante tenta esconder CO2 alto
-    with pytest.raises(Rejected) as e:
-        verify_sensor(json.dumps(p), "sala", S, NonceCache(), NOW)
-    assert e.value.kind == "auth"
+def post(port, body: bytes, sig: str):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/telemetry", data=body, method="POST",
+                                 headers={"X-Signature": sig, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
 
 
-def test_wrong_key_and_cross_room_rejected():
-    p = sign_sensor(S, "quarto", VALS, NOW)
-    with pytest.raises(Rejected) as e:
-        verify_sensor(json.dumps(p), "sala", S, NonceCache(), NOW)  # publicado no tópico errado
-    assert e.value.kind == "auth"
+class SecurityTests(unittest.TestCase):
+    def test_hmac(self):
+        b = b'{"node":"S1"}'
+        s = sign(SECRET, b)
+        self.assertTrue(verify(SECRET, b, s))
+        self.assertFalse(verify(SECRET, b + b" ", s))
+        self.assertFalse(verify(b"outro", b, s))
+        self.assertFalse(verify(SECRET, b, ""))
+
+    def test_replay_guard(self):
+        g = ReplayGuard()
+        self.assertTrue(g.accept("S1", 1, 1))
+        self.assertTrue(g.accept("S1", 1, 2))
+        self.assertFalse(g.accept("S1", 1, 2))
+        self.assertFalse(g.accept("S1", 1, 1))
+        self.assertTrue(g.accept("S1", 2, 1))      # novo boot
+        self.assertFalse(g.accept("S1", 1, 2))     # boot antigo: replay (VULN-001)
+
+    def test_servidor_end_to_end(self):
+        srv, st = make_server("127.0.0.1", 0, State(SECRET))
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            ok = json.dumps({"node": "S1", "boot": 7, "seq": 1, "t": 24.0, "h": 50, "ppm": 1500}).encode()
+            self.assertEqual(post(port, ok, sign(SECRET, ok)), 200)
+            self.assertEqual(post(port, ok, sign(SECRET, ok)), 409)             # replay
+            self.assertEqual(post(port, ok, "00" * 32), 401)                    # assinatura errada
+            adulterado = ok.replace(b"1500", b"400 ")
+            self.assertEqual(post(port, adulterado, sign(SECRET, ok)), 401)     # corpo adulterado
+            self.assertEqual(post(port, b"{}", sign(SECRET, b"{}")), 400)       # campos faltando
+            self.assertEqual(st.counters["accepted"], 1)
+            self.assertEqual(st.counters["replay"], 1)
+            self.assertEqual(st.counters["bad_signature"], 2)
+            # comando assinado: ppm alto => ventilador ligado
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/control?node=S1", timeout=3) as r:
+                body, sig = r.read(), r.headers["X-Signature"]
+            self.assertTrue(verify(SECRET, body, sig))
+            self.assertTrue(json.loads(body)["fan"])
+        finally:
+            srv.shutdown()
+            srv.server_close()
 
 
-def test_replay_rejected():
-    raw, cache = json.dumps(sign_sensor(S, "sala", VALS, NOW)), NonceCache()
-    verify_sensor(raw, "sala", S, cache, NOW)
-    with pytest.raises(Rejected) as e:
-        verify_sensor(raw, "sala", S, cache, NOW + 1)
-    assert e.value.kind == "replay"
-
-
-def test_stale_timestamp_rejected():
-    raw = json.dumps(sign_sensor(S, "sala", VALS, NOW - 1000))
-    with pytest.raises(Rejected) as e:
-        verify_sensor(raw, "sala", S, NonceCache(), NOW)
-    assert e.value.kind == "stale"
-
-
-def test_implausible_value_rejected():
-    raw = json.dumps(sign_sensor(S, "sala", {**VALS, "co2": 50000.0}, NOW))
-    with pytest.raises(Rejected) as e:
-        verify_sensor(raw, "sala", S, NonceCache(), NOW)
-    assert e.value.kind == "implausible"
-
-
-@pytest.mark.parametrize("raw", ["", "not json", "[]", "{}", '{"node":"esp32-sala"}'])
-def test_malformed_rejected(raw):
-    with pytest.raises(Rejected) as e:
-        verify_sensor(raw, "sala", S, NonceCache(), NOW)
-    assert e.value.kind == "malformed"
-
-
-def test_command_roundtrip_and_tamper():
-    raw = json.dumps(sign_command(S, "sala", 2, 1, NOW))
-    assert verify_command(raw, "sala", S, NonceCache(), NOW) == (2, 1)
-    p = json.loads(raw)
-    p["exhaust"] = 0  # desliga a ventilação sem a chave
-    with pytest.raises(Rejected):
-        verify_command(json.dumps(p), "sala", S, NonceCache(), NOW)
-    with pytest.raises(Rejected):  # comando de outro cômodo
-        verify_command(raw, "quarto", S, NonceCache(), NOW)
+if __name__ == "__main__":
+    unittest.main()

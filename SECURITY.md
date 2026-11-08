@@ -1,12 +1,10 @@
 # Política de segurança
 
-## Reportar vulnerabilidades
-Abra um *security advisory* privado no GitHub (aba *Security*) ou fale diretamente com os mantenedores. Não publique detalhes em issues públicas antes da correção.
-
-## Escopo e regras para testes
-- Testes de ataque (replay, publicação não autorizada, flooding, comandos forjados) **somente no broker e nos dispositivos do próprio grupo**, em laboratório.
-- É proibido capturar ou testar tráfego de redes de terceiros.
-- Nunca faça commit de chaves HMAC, senhas MQTT, certificados ou `config.h`.
-
-## Limitações conhecidas (MVP)
-Chave HMAC gravada no firmware; `atuador/state` sem assinatura; sem OTA assinado; modo dev sem criptografia de transporte. Veja `docs/protocolo.md`.
+**Escopo**: código deste repositório (simulador, gateway, firmware). Não há dados reais de terceiros.
+**Como reportar**: abra um *security advisory* privado no GitHub ou envie e-mail ao mantenedor (preencher).
+**Histórico**: vulnerabilidades já tratadas estão em `docs/VULNERABILIDADES.md` (VULN-001 a VULN-007).
+**Limitações conhecidas**: HMAC garante integridade e autenticidade; a confidencialidade depende de TLS (nuvem e firmware
+`https://`). Em laboratório com HTTP, use somente rede isolada. O contador anti-replay de comandos fica em RAM no ESP32; telemetria e alertas ficam em RAM no gateway;
+o segredo HMAC é compartilhado por todos os nós; o bloqueio é por IP.
+**Segredos**: `PURA_SECRET` (16+ caracteres) é obrigatório e nunca vai para o Git.
+**Ética**: ataques de teste somente contra o gateway do próprio grupo (`tools/security_demo.py` só fala com 127.0.0.1).

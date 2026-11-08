@@ -1,26 +1,25 @@
 # Como contribuir
 
-## Fluxo
-1. Abra ou escolha uma *issue* (labels: `bug`, `feature`, `hardware`, `docs`, `good first issue`).
-2. Crie uma branch a partir de `main`: `feat/nome-curto`, `fix/...`, `docs/...`.
-3. Commits no padrão *conventional commits*: `feat(guards): ...`, `fix(firmware): ...`, `docs: ...`, `test: ...`.
-4. Abra um PR usando o template. **Todo PR precisa de revisão de outra pessoa** (ninguém aprova o próprio PR). Proteja a `main` no GitHub (*Settings → Branches*: exigir PR, 1 aprovação e CI verde).
-5. Não faça push direto na `main`.
+Este repositório é de um grupo acadêmico, mas segue práticas de projetos de código aberto.
 
-## Ambiente
+## Fluxo de trabalho
+1. Abra uma **issue** descrevendo o problema ou a melhoria (modelos em `.github/`).
+2. Crie um branch a partir de `main`: `feat/<tema>`, `fix/<tema>` ou `docs/<tema>`.
+3. Faça commits pequenos, com mensagens no formato `tipo: resumo` (`feat`, `fix`, `test`, `docs`, `refactor`).
+4. Abra um **Pull Request** usando o modelo. Ele só entra com **1 aprovação** de outro integrante (nunca a sua própria) e CI verde (**lint, testes e build Docker**).
+5. Use *squash merge*. O histórico de commits de cada integrante é evidência de contribuição.
+
+## Rodando localmente
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-ruff check . && pytest
+python -m unittest discover -s tests -t .        # 39 testes
+ruff check .                                     # lint (pip install ruff); o CI exige
+python -m pura.experiments --seeds 30      # protocolo experimental completo (~1 min)
+PURA_SECRET=um-segredo-com-16-ou-mais python -m pura.server   # gateway + dashboard em http://localhost:8000
 ```
 
 ## Regras do projeto
-- Mudou função objetivo, restrição ou guarda? Atualize os testes em `tests/` e `docs/modelagem.md`.
-- Decisão de arquitetura relevante? Crie um ADR em `docs/adr/` (`ADR-00N-titulo.md`: contexto, decisão, consequências).
-- Mudou o protocolo MQTT? Atualize `docs/protocolo.md`, o firmware **e** `security.py` no mesmo PR.
-- Resultados de experimentos: sempre ≥ 30 execuções com média e desvio-padrão, contra o baseline; resultados negativos também entram no relatório.
-- **Nunca** commite segredos (`.env`, `config.h`, chaves, certificados, senhas). Se vazar, troque a chave imediatamente e avise o grupo.
-- Dados sintéticos precisam estar documentados (regra de geração e premissas).
-
-## Bom primeiro PR
-Calibrar as tabelas de `dynamics.py` com medições reais; adicionar um sensor ao firmware; melhorar a estimativa de ocupação; novo gráfico no dashboard.
+- Toda mudança na **função objetivo ou nas restrições** (`model.py`) precisa de teste em `tests/test_model.py`.
+- Um novo otimizador entra implementando `Router` e registrado em `routers/__init__.py` (padrão Strategy). Não altere o simulador.
+- Resultados só valem com **baseline, várias sementes e média ± desvio-padrão**. Não apague resultados desfavoráveis.
+- Dados sintéticos devem ser declarados. **Não suba capturas de tráfego de redes reais.**
+- Segredos nunca entram no Git (`secrets.h` e `.env` estão no `.gitignore`).
