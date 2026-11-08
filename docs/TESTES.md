@@ -7,11 +7,11 @@ registrado com print, link ou log no relatório.
 | # | Comando | Resultado esperado |
 |---|---|---|
 | A1 | `python -m unittest discover -s tests -t . -v` | **39 testes, OK** (modelo, roteadores, guarda, PSO, segurança, monitor, vulnerabilidades VULN-001 a 007) |
-| A2 | `pip install ruff && ruff check .` | `All checks passed!` Se o ruff apontar algo, corrija. `tests/test_routers.py` tinha duas linhas com `;` (E702), já separadas; `python tools/minilint.py .` é a alternativa offline e também detecta `;` |
-| A3 | `python -m ciao_rotas.experiments --seeds 30` | ~1 min; recria `results/`. Confira: as métricas de qualidade (latência p95, goodput, J) devem bater com `results/summary.csv`; os **tempos** (`compute_ms`, `over_budget`) dependem da sua máquina. ACO/Memético reduzem a latência p95 contra o Dijkstra |
+| A2 | `pip install ruff && ruff check .` | `All checks passed!` (já verificado com o ruff real; um E702 em `tests/test_routers.py` que quebraria o CI foi corrigido). `tools/minilint.py` segue como alternativa offline |
+| A3 | `python -m pura.experiments --seeds 30` | ~1 min; recria `results/`. Confira: Dijkstra residual vence ou empata em tempo; ACO/Memético reduzem a latência p95 contra o Dijkstra |
 | A4 | `PYTHONPATH=. python tools/security_demo.py` | 200, 200, 200 → **409** (replay) → 401×5 e **429** (bloqueio) → alertas `BAD_SIGNATURE_BURST` e `REPLAY` |
-| A5 | `docker build -t ciao-gateway . && docker run --rm -p 8000:8000 -e CIAO_SECRET=segredo-com-16-ou-mais ciao-gateway` | `curl localhost:8000/healthz` → `{"status": "ok"}` |
-| A6 | `docker run --rm ciao-gateway` (sem segredo) | **Deve falhar** com a mensagem de segredo ausente (VULN-002) |
+| A5 | `docker build -t pura-gateway . && docker run --rm -p 8000:8000 -e PURA_SECRET=segredo-com-16-ou-mais pura-gateway` | `curl localhost:8000/healthz` → `{"status": "ok"}` |
+| A6 | `docker run --rm pura-gateway` (sem segredo) | **Deve falhar** com a mensagem de segredo ausente (VULN-002) |
 
 ## B. Testes manuais obrigatórios
 
@@ -53,12 +53,12 @@ registrado com print, link ou log no relatório.
 | Replay | Capture uma mensagem válida (log do ESP32 ou proxy) e reenvie | HTTP 409 e alerta `REPLAY` |
 | Replay de boot antigo | Reinicie o ESP32 e reenvie uma mensagem do boot anterior | HTTP 409 (VULN-001) |
 | Rajada | 6 requisições com assinatura inválida seguidas | 401… e depois **429** + alerta `BAD_SIGNATURE_BURST` + IP bloqueado no painel |
-| Replay após reinício (VULN-006) | Reinicie o gateway (com `CIAO_REQUIRE_TS=1`) e reenvie uma mensagem capturada há mais de 2 min | HTTP 409 e alerta `REPLAY` |
+| Replay após reinício (VULN-006) | Reinicie o gateway (com `PURA_REQUIRE_TS=1`) e reenvie uma mensagem capturada há mais de 2 min | HTTP 409 e alerta `REPLAY` |
 | Comando de outro nó (VULN-007) | No firmware, serve um comando assinado com `"node":"S2"` (proxy de teste) | Serial: `comando REJEITADO: destinado a outro no`; relé não muda |
 | Silêncio de nó | Desligue o ESP32 por mais de 30 s | Alerta `NODE_SILENCE` |
-| Sem segredo | Suba o gateway sem `CIAO_SECRET` | Recusa subir |
+| Sem segredo | Suba o gateway sem `PURA_SECRET` | Recusa subir |
 | **Criptografia em trânsito (VULN-004)** | Em rede de laboratório **própria**, capture com Wireshark/tcpdump: (1) `http://` e (2) `https://` | HTTP: JSON e comando legíveis. HTTPS: só dados cifrados |
-| Análise offline | Rode o gateway com `--traffic-log trafego.jsonl` e depois `python -m ciao_rotas.monitor trafego.jsonl` | Resumo por IP, alertas e IPs bloqueados |
+| Análise offline | Rode o gateway com `--traffic-log trafego.jsonl` e depois `python -m pura.monitor trafego.jsonl` | Resumo por IP, alertas e IPs bloqueados |
 
 Faça estes testes **apenas** no sistema do próprio grupo.
 

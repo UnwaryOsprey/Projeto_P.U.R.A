@@ -1,0 +1,15 @@
+# Blueprint do Render (camada gratuita). Deploy automático SOMENTE se os checks do GitHub passarem.
+services:
+  - type: web
+    name: pura-gateway
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PURA_SECRET        # gerado pelo Render; copie para o secrets.h do ESP32 (HMAC_SECRET)
+        generateValue: true
+      - key: PURA_REQUIRE_TS   # VULN-006: exige carimbo de tempo assinado (firmware em modo https tem NTP)
+        value: "1"
+      - key: TRUST_PROXY        # atrás do proxy TLS do Render: usa X-Forwarded-For para identificar o IP
+        value: "1"
