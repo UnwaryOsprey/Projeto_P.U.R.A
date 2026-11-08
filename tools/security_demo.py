@@ -33,7 +33,10 @@ def main():
     port = a.port
 
     print(f"== Conectando ao Gateway em http://127.0.0.1:{port} ==")
-    print("Certifique-se de que o servidor principal está rodando (`python -m pura.server`) e o painel aberto no navegador.\n")
+    print(
+    "Certifique-se de que o servidor principal está rodando "
+    "(`python -m pura.server`) e o painel aberto no navegador.\n"
+)
 
     print("== 1) Tráfego legítimo do ESP32 (boot=111)")
     first = msg(111, 1)
