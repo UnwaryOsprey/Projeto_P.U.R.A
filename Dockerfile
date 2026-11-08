@@ -20,4 +20,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import os,urllib.request as u; u.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('PORT','8000'))"
 
 # Use o comando principal do módulo que inicia a API e o painel
-CMD ["python", "-m", "pura", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "pura/server.py", "--host", "0.0.0.0", "--port", "8000"]
